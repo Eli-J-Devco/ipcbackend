@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="User">
+	<resultMap id="UserAuthMap"
+		type="com.nwm.api.entities.UserEntity">
+		<result property="user_name" column="user_name" />
+		<result property="email" column="email" />
+		<result property="password" column="password" />
+		<result property="name" column="name" />
+		<result property="first_name" column="first_name" />
+		<result property="last_name" column="last_name" />
+		<result property="id" column="id" />
+		
+	</resultMap>
+	
+	<select id="getUserByEmail" resultMap="UserAuthMap" parameterType="String">
+    	SELECT
+    		u.`id`,
+			u.`first_name`,
+			u.`last_name`,
+			u.password,
+			u.email,
+			u.phone,
+			CONCAT( 'ROLE_', 1 ) AS roles
+			
+		FROM `user` u
+		WHERE u.email = #{value} GROUP BY u.id;
+		;
+  	</select>
+  	
+  	<select id="getPermissionByUser" resultType="Map">
+		SELECT 
+			m.id_screen,
+			m.screen_name,
+			IF(m.class_icon != '', m.class_icon, '') AS class_icon,
+			m.has_child,
+			m.`level`,
+			m.parent,
+			m.path,
+			m.show_menu,
+			(MAX(m.`view`) + MAX(m.`new`) + MAX(m.`delete`) + MAX(m.`edit`) + MAX(m.`excel`) + MAX(m.`pdf`) + MAX(m.`print`) + MAX(m.`translate`) + MAX(m.`approval`)) AS auths
+			FROM (
+				SELECT
+					rs.id_role, 
+					r.`name` AS role_name,
+					rs.id_screen,
+					s.screen_name,
+					s.class_icon,
+					s.has_child,
+					s.`level`,
+					s.parent,
+					s.path,
+					s.show_menu,
+					CONCAT_WS(', ',e.first_name,e.last_name) AS full_name,
+					IF(rs.auths >= 1, 1, 0) AS `view`,
+					IF(rs.auths >= 2, 2, 0) AS `new`,
+					IF(rs.auths >= 4, 4, 0) AS `delete`,
+					IF(rs.auths >= 8, 8, 0) AS `edit`,
+					IF(rs.auths >= 16, 16, 0) AS `excel`,
+					IF(rs.auths >= 32, 32, 0) AS `pdf`,
+					IF(rs.auths >= 64, 64, 0) AS `print`,
+					IF(rs.auths >= 128, 128, 0) AS `translate`,
+					IF(rs.auths >= 256, 256, 0)  AS `approval`
+		
+				FROM
+					role_screen_map rs
+					LEFT JOIN screen s ON s.id = rs.id_screen
+					LEFT JOIN role r ON r.id = rs.id_role
+					LEFT JOIN user_role_map er ON r.id = er.id_role
+					LEFT JOIN `user` e ON e.id = er.id_user
+				WHERE e.id = #{id} AND s.`status` = 1 AND rs.auths > 0
+			)m  GROUP BY m.id_screen ORDER BY m.`level`
+	</select>
+
+</mapper>
